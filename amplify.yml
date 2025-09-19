@@ -3,9 +3,13 @@ frontend:
   phases:
     preBuild:
       commands:
+        - echo ">>> using amplify.yml at $(pwd)"
+        - node -v
         - npm ci
+        - ls -la
     build:
       commands:
+        - echo ">>> start next build"
         - npx next build
   artifacts:
     baseDirectory: .next
