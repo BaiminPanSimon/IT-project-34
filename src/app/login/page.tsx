@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToastContext } from '@/contexts/ToastContext'
 
@@ -14,63 +14,43 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   
-  const { login, isLoading, isAuthenticated, user } = useAuth()
+  const { login, isLoading, isAuthenticated } = useAuth()
   const { success, error: showError } = useToastContext()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      router.push('/')
+      const returnUrl = searchParams.get('returnUrl') || '/'
+      router.push(returnUrl)
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, router, searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
+    
     if (!email || !password) {
       setError('Please fill in all fields')
       return
     }
+    
     if (password.length < 6) {
       setError('Password must be at least 6 characters')
       return
     }
-
-    const res = await login(email, password, rememberMe)
-
-    if (res.success) {
-      // 现在 user 来自 AuthContext（Cognito 的 ID Token 解析），不再读 localStorage
-      const displayName = user?.name || email.split('@')[0] || 'User'
-      success(`Welcome back, ${displayName}!`, 'You have successfully logged in.')
-      router.push('/')
-      return
+    
+    const loginResult = await login(email, password, rememberMe)
+    
+    if (loginResult.success) {
+      success('Welcome back!', 'You have successfully logged in.')
+      const returnUrl = searchParams.get('returnUrl') || '/'
+      router.push(returnUrl)
+    } else {
+      setError(loginResult.error || 'Login failed. Please try again.')
+      showError('Login failed', loginResult.error || 'Something went wrong. Please try again.')
     }
-
-    // 未注册 / 密码错误
-    if (res.isNewUser) {
-      setError('This email is not registered. Please sign up first.')
-      showError('Account not found', 'This email is not registered. Please create an account first.')
-      return
-    }
-    if (res.incorrectPassword) {
-      setError('Password is incorrect. Please try again.')
-      showError('Login failed', 'Password is incorrect. Please check your password and try again.')
-      return
-    }
-
-    // 关键：如果账户尚未验证邮箱
-    if ((res as any).needsConfirm) {
-      setError('Please verify your email before signing in.')
-      showError('Email not verified', 'We have sent a verification code to your email.')
-      router.push(`/confirm?email=${encodeURIComponent(email)}`)
-      return
-    }
-
-    // 兜底
-    setError('Login failed. Please try again.')
-    showError('Login failed', 'Something went wrong. Please try again.')
   }
 
   return (
